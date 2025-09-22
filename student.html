@@ -74,6 +74,15 @@
     .delete-btn:hover {
       background: #c0392b;
     }
+    .disabled-btn {
+      background: #aaa;
+      color: #fff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 13px;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -118,13 +127,20 @@
       table.innerHTML = "";
 
       subs.forEach(sub => {
+        const graded = sub.score !== null; // check if graded
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${sub.title}</td>
           <td><a href="${API_URL}${sub.filePath}" target="_blank">${sub.originalName}</a></td>
           <td>${sub.score ?? "Not graded"}</td>
           <td>${sub.feedback ?? "No feedback"}</td>
-          <td><button class="delete-btn" onclick="deleteSubmission('${sub.id}')">Delete</button></td>
+          <td>
+            ${
+              graded
+                ? `<button class="disabled-btn" disabled>Locked</button>`
+                : `<button class="delete-btn" onclick="deleteSubmission('${sub.id}', '${sub.title}')">Delete</button>`
+            }
+          </td>
         `;
         table.appendChild(tr);
       });
@@ -162,13 +178,11 @@
     });
 
     // Delete project
-    async function deleteSubmission(id) {
-      if (!confirm("Are you sure you want to delete this project?")) return;
+    async function deleteSubmission(id, title) {
+      if (!confirm(`Are you sure you want to delete the project: "${title}"?`)) return;
 
       const res = await fetch(`${API_URL}/submissions/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student: loggedInUser.email })
+        method: "DELETE"
       });
 
       if (res.ok) {
