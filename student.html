@@ -5,169 +5,182 @@
   <title>Student Dashboard - Online Project Grading System</title>
   <style>
     body {
-      font-family: "Segoe UI", sans-serif;
-      background: linear-gradient(135deg, #2d89ef, #6a11cb, #2575fc);
-      background-size: 400% 400%;
-      animation: gradientBG 12s ease infinite;
+      font-family: Arial, sans-serif;
+      background: #f3f6fa;
       margin: 0;
       padding: 0;
     }
-    @keyframes gradientBG {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+    header {
+      background: #2575fc;
+      color: #fff;
+      padding: 15px;
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
     }
     .container {
-      max-width: 800px;
-      margin: 40px auto;
-      background: rgba(255,255,255,0.95);
+      width: 90%;
+      max-width: 900px;
+      margin: 20px auto;
+      background: #fff;
       padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
-    h1 {
-      text-align: center;
-      color: #2d2d2d;
+    h2 {
       margin-bottom: 15px;
+      color: #333;
     }
-    h2, h3 { color: #333; }
-    .logout {
-      float: right;
-      background: crimson;
-      color: white;
-      border: none;
-      padding: 6px 12px;
+    form {
+      margin-bottom: 20px;
+    }
+    input, button {
+      margin: 8px 0;
+      padding: 10px;
       border-radius: 6px;
-      cursor: pointer;
+      border: 1px solid #ccc;
+      font-size: 14px;
     }
+    button {
+      background: #2575fc;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+    }
+    button:hover { background: #1a56d6; }
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 15px;
     }
-    table th, table td {
-      padding: 10px;
+    th, td {
       border: 1px solid #ddd;
-      text-align: center;
+      padding: 10px;
+      text-align: left;
     }
-    table th { background: #2d89ef; color: white; }
-    input, button { padding: 6px; border-radius: 5px; border: 1px solid #ccc; }
-    button { background: #2d89ef; color: white; cursor: pointer; }
-    button:hover { background: #1b5fc8; }
+    th {
+      background: #f4f4f4;
+    }
+    .delete-btn {
+      background: #e74c3c;
+      color: #fff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .delete-btn:hover {
+      background: #c0392b;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <button class="logout" onclick="logout()">Logout</button>
-    <h1>Online Project Grading System</h1>
-    <h2 id="welcomeMessage">Student Dashboard</h2>
+  <header>📚 Online Project Grading System - Student Dashboard</header>
 
-    <h3>Submit Your Projects</h3>
-    <table id="projectsTable">
+  <div class="container">
+    <h2>Submit Project</h2>
+    <form id="projectForm" enctype="multipart/form-data">
+      <input type="text" id="title" placeholder="Project Title" required><br>
+      <input type="file" id="file" required><br>
+      <button type="submit">Upload</button>
+    </form>
+
+    <h2>My Submissions</h2>
+    <table>
       <thead>
         <tr>
-          <th>Project Title</th>
+          <th>Title</th>
           <th>File</th>
-          <th>Score / Feedback</th>
+          <th>Score</th>
+          <th>Feedback</th>
           <th>Action</th>
         </tr>
       </thead>
-      <tbody></tbody>
+      <tbody id="submissionsTable"></tbody>
     </table>
   </div>
 
   <script>
     const API_URL = "https://project-grader-backend.onrender.com/api";
-    const user = JSON.parse(localStorage.getItem("loggedInUser"));
-
-    if (!user || user.role !== "Student") window.location.href = "index.html";
-    else document.getElementById("welcomeMessage").textContent = `Welcome, ${user.name} - Role: ${user.role}`;
-
-    function logout() {
-      localStorage.removeItem("loggedInUser");
+    const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser"));
+    if (!loggedInUser || loggedInUser.role !== "Student") {
+      alert("Unauthorized. Please log in as Student.");
       window.location.href = "index.html";
     }
 
-    async function fetchStudentProjects() {
-      try {
-        const res = await fetch(`${API_URL}/submissions/student/${user.email}`);
-        const data = await res.json();
-        const tbody = document.getElementById("projectsTable").querySelector("tbody");
-        tbody.innerHTML = "";
+    // Load submissions
+    async function loadSubmissions() {
+      const res = await fetch(`${API_URL}/submissions/student/${loggedInUser.email}`);
+      const subs = await res.json();
+      const table = document.getElementById("submissionsTable");
+      table.innerHTML = "";
 
-        // Existing projects
-        data.forEach(sub => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td>${sub.title}</td>
-            <td><a href="${API_URL.replace("/api","")}${sub.filePath}" target="_blank">${sub.originalName}</a></td>
-            <td>${sub.score ?? "-"} / ${sub.feedback ?? "-"}</td>
-            <td><button onclick="deleteProject('${sub.id}')">Delete</button></td>
-          `;
-          tbody.appendChild(row);
-        });
-
-        // Empty row to allow new submission
-        const newRow = document.createElement("tr");
-        newRow.innerHTML = `
-          <td><input type="text" placeholder="Project Title"></td>
-          <td><input type="file"></td>
-          <td>-</td>
-          <td><button onclick="submitProject(this)">Submit</button></td>
+      subs.forEach(sub => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${sub.title}</td>
+          <td><a href="${API_URL}${sub.filePath}" target="_blank">${sub.originalName}</a></td>
+          <td>${sub.score ?? "Not graded"}</td>
+          <td>${sub.feedback ?? "No feedback"}</td>
+          <td><button class="delete-btn" onclick="deleteSubmission('${sub.id}')">Delete</button></td>
         `;
-        tbody.appendChild(newRow);
-
-      } catch(err) {
-        alert("Failed to load your projects: " + err.message);
-      }
+        table.appendChild(tr);
+      });
     }
 
-    async function submitProject(button) {
-      const row = button.closest("tr");
-      const title = row.querySelector('input[type="text"]').value;
-      const fileInput = row.querySelector('input[type="file"]');
-      const file = fileInput.files[0];
+    // Submit project
+    document.getElementById("projectForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const title = document.getElementById("title").value.trim();
+      const file = document.getElementById("file").files[0];
 
-      if (!title) { alert("Please enter the project title."); return; }
-      if (!file) { alert("Please choose a file."); return; }
+      if (!title || !file) {
+        alert("Please fill all fields.");
+        return;
+      }
 
       const formData = new FormData();
       formData.append("title", title);
-      formData.append("student", user.email);
+      formData.append("student", loggedInUser.email);
       formData.append("file", file);
 
-      try {
-        const res = await fetch(`${API_URL}/submissions`, { method: "POST", body: formData });
-        const data = await res.json();
-        if (res.ok) {
-          alert("✅ Project submitted: " + title);
-          fetchStudentProjects();
-        } else {
-          alert(data.error || "Submission failed");
-        }
-      } catch(err) {
-        alert("Network error: " + err.message);
-      }
-    }
+      const res = await fetch(`${API_URL}/submissions`, {
+        method: "POST",
+        body: formData
+      });
 
-    async function deleteProject(id) {
+      if (res.ok) {
+        alert("✅ Project submitted successfully.");
+        document.getElementById("projectForm").reset();
+        loadSubmissions();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Submission failed.");
+      }
+    });
+
+    // Delete project
+    async function deleteSubmission(id) {
       if (!confirm("Are you sure you want to delete this project?")) return;
 
-      try {
-        const res = await fetch(`${API_URL}/submissions/${id}`, { method: "DELETE" });
+      const res = await fetch(`${API_URL}/submissions/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student: loggedInUser.email })
+      });
+
+      if (res.ok) {
+        alert("🗑️ Project deleted.");
+        loadSubmissions();
+      } else {
         const data = await res.json();
-        if (res.ok) {
-          alert("✅ Project deleted");
-          fetchStudentProjects();
-        } else {
-          alert(data.error || "Failed to delete project");
-        }
-      } catch(err) {
-        alert("Network error: " + err.message);
+        alert(data.error || "Failed to delete project.");
       }
     }
 
-    fetchStudentProjects();
+    loadSubmissions();
   </script>
 </body>
 </html>
