@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Student Dashboard - Project Grading System</title>
+  <title>Student Dashboard - Online Project Grading System</title>
   <style>
     body {
       font-family: "Segoe UI", sans-serif;
@@ -18,12 +18,17 @@
       100% { background-position: 0% 50%; }
     }
     .container {
-      max-width: 900px;
+      max-width: 800px;
       margin: 40px auto;
       background: rgba(255,255,255,0.95);
       padding: 20px;
       border-radius: 12px;
       box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    }
+    h1 {
+      text-align: center;
+      color: #2d2d2d;
+      margin-bottom: 15px;
     }
     h2, h3 { color: #333; }
     .logout {
@@ -46,43 +51,29 @@
       text-align: center;
     }
     table th { background: #2d89ef; color: white; }
-    input, button {
-      padding: 6px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-    }
-    button {
-      background: #2d89ef;
-      color: white;
-      cursor: pointer;
-    }
+    input, button { padding: 6px; border-radius: 5px; border: 1px solid #ccc; }
+    button { background: #2d89ef; color: white; cursor: pointer; }
     button:hover { background: #1b5fc8; }
   </style>
 </head>
 <body>
   <div class="container">
     <button class="logout" onclick="logout()">Logout</button>
+    <h1>Online Project Grading System</h1>
     <h2 id="welcomeMessage">Student Dashboard</h2>
 
-    <h3>📋 Your Project Submissions</h3>
-    <table id="submissionsTable">
+    <h3>Submit Your Projects</h3>
+    <table id="projectsTable">
       <thead>
         <tr>
           <th>Project Title</th>
           <th>File</th>
-          <th>Score</th>
-          <th>Feedback</th>
+          <th>Score / Feedback</th>
+          <th>Action</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
-
-    <h3>➕ Submit New Project</h3>
-    <form id="submitForm" enctype="multipart/form-data">
-      <input type="text" id="title" placeholder="Project Title" required>
-      <input type="file" id="file" required>
-      <button type="submit">Submit Project</button>
-    </form>
   </div>
 
   <script>
@@ -90,66 +81,93 @@
     const user = JSON.parse(localStorage.getItem("loggedInUser"));
 
     if (!user || user.role !== "Student") window.location.href = "index.html";
-    else document.getElementById("welcomeMessage").textContent = `Welcome, ${user.name}`;
-
-    const submissionsTable = document.getElementById("submissionsTable").querySelector("tbody");
-    const submitForm = document.getElementById("submitForm");
-
-    async function fetchSubmissions() {
-      const res = await fetch(`${API_URL}/submissions/student/${user.email}`);
-      const data = await res.json();
-
-      submissionsTable.innerHTML = data.map(s => `
-        <tr>
-          <td>${s.title}</td>
-          <td><a href="${API_URL.replace("/api","")}${s.filePath}" target="_blank">${s.originalName}</a></td>
-          <td>${s.score ?? "-"}</td>
-          <td>${s.feedback ?? "-"}</td>
-        </tr>
-      `).join("");
-    }
-
-    submitForm.addEventListener("submit", async e => {
-      e.preventDefault();
-      const title = document.getElementById("title").value.trim();
-      const fileInput = document.getElementById("file");
-      const file = fileInput.files[0];
-
-      if (!title || !file) {
-        alert("Project title and file are required.");
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("student", user.email);
-      formData.append("title", title);
-      formData.append("file", file);
-
-      try {
-        const res = await fetch(`${API_URL}/submissions`, {
-          method: "POST",
-          body: formData
-        });
-        const data = await res.json();
-        if (res.ok) {
-          alert("✅ Project submitted successfully!");
-          submitForm.reset();
-          fetchSubmissions();
-        } else {
-          alert(data.error || "Submission failed.");
-        }
-      } catch(err) {
-        alert("Network error: " + err.message);
-      }
-    });
+    else document.getElementById("welcomeMessage").textContent = `Welcome, ${user.name} - Role: ${user.role}`;
 
     function logout() {
       localStorage.removeItem("loggedInUser");
       window.location.href = "index.html";
     }
 
-    fetchSubmissions();
+    async function fetchStudentProjects() {
+      try {
+        const res = await fetch(`${API_URL}/submissions/student/${user.email}`);
+        const data = await res.json();
+        const tbody = document.getElementById("projectsTable").querySelector("tbody");
+        tbody.innerHTML = "";
+
+        // Existing projects
+        data.forEach(sub => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${sub.title}</td>
+            <td><a href="${API_URL.replace("/api","")}${sub.filePath}" target="_blank">${sub.originalName}</a></td>
+            <td>${sub.score ?? "-"} / ${sub.feedback ?? "-"}</td>
+            <td><button onclick="deleteProject('${sub.id}')">Delete</button></td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        // Empty row to allow new submission
+        const newRow = document.createElement("tr");
+        newRow.innerHTML = `
+          <td><input type="text" placeholder="Project Title"></td>
+          <td><input type="file"></td>
+          <td>-</td>
+          <td><button onclick="submitProject(this)">Submit</button></td>
+        `;
+        tbody.appendChild(newRow);
+
+      } catch(err) {
+        alert("Failed to load your projects: " + err.message);
+      }
+    }
+
+    async function submitProject(button) {
+      const row = button.closest("tr");
+      const title = row.querySelector('input[type="text"]').value;
+      const fileInput = row.querySelector('input[type="file"]');
+      const file = fileInput.files[0];
+
+      if (!title) { alert("Please enter the project title."); return; }
+      if (!file) { alert("Please choose a file."); return; }
+
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("student", user.email);
+      formData.append("file", file);
+
+      try {
+        const res = await fetch(`${API_URL}/submissions`, { method: "POST", body: formData });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ Project submitted: " + title);
+          fetchStudentProjects();
+        } else {
+          alert(data.error || "Submission failed");
+        }
+      } catch(err) {
+        alert("Network error: " + err.message);
+      }
+    }
+
+    async function deleteProject(id) {
+      if (!confirm("Are you sure you want to delete this project?")) return;
+
+      try {
+        const res = await fetch(`${API_URL}/submissions/${id}`, { method: "DELETE" });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ Project deleted");
+          fetchStudentProjects();
+        } else {
+          alert(data.error || "Failed to delete project");
+        }
+      } catch(err) {
+        alert("Network error: " + err.message);
+      }
+    }
+
+    fetchStudentProjects();
   </script>
 </body>
 </html>
-
