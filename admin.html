@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard - Project Grading System</title>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #2d89ef, #6a11cb, #2575fc);
+      background-size: 400% 400%;
+      animation: gradientBG 12s ease infinite;
+      margin: 0;
+      padding: 0;
+    }
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .container {
+      max-width: 1000px;
+      margin: 40px auto;
+      background: rgba(255,255,255,0.95);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    }
+    h2, h3 { color: #333; }
+    .logout {
+      float: right;
+      background: crimson;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    table th, table td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+    table th { background: #2d89ef; color: white; }
+    input, button {
+      padding: 6px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #2d89ef;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { background: #1b5fc8; }
+    form { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
+    form input { flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button class="logout" onclick="logout()">Logout</button>
+    <h2 id="welcomeMessage">Admin Dashboard</h2>
+
+    <h3>📋 All Project Submissions</h3>
+    <table id="submissionsTable">
+      <thead>
+        <tr>
+          <th>Student Name</th>
+          <th>Project Title</th>
+          <th>File</th>
+          <th>Score</th>
+          <th>Feedback</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h3>👩‍🏫 Manage Instructors</h3>
+    <form id="instructorForm">
+      <input type="text" id="instName" placeholder="Instructor Name" required>
+      <input type="email" id="instEmail" placeholder="Instructor Email" required>
+      <input type="password" id="instPassword" placeholder="Password" required>
+      <button type="submit">Register Instructor</button>
+    </form>
+    <table id="instructorsTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h3>👨‍🎓 Manage Students</h3>
+    <table id="studentsTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const API_URL = "https://project-grader-backend.onrender.com/api";
+    const user = JSON.parse(localStorage.getItem("loggedInUser"));
+
+    if (!user || user.role !== "Admin") window.location.href = "index.html";
+    else document.getElementById("welcomeMessage").textContent = `Welcome, ${user.name} (Admin)`;
+
+    const submissionsTable = document.getElementById("submissionsTable").querySelector("tbody");
+    const instructorsTable = document.getElementById("instructorsTable").querySelector("tbody");
+    const studentsTable = document.getElementById("studentsTable").querySelector("tbody");
+
+    // ---------------- Fetch Data ----------------
+    async function fetchSubmissions() {
+      const res = await fetch(`${API_URL}/submissions`);
+      const data = await res.json();
+      submissionsTable.innerHTML = data.map(s => `
+        <tr>
+          <td>${s.student}</td>
+          <td>${s.title}</td>
+          <td><a href="${API_URL.replace("/api","")}${s.filePath}" target="_blank">${s.originalName}</a></td>
+          <td>${s.score ?? "-"}</td>
+          <td>${s.feedback ?? "-"}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function fetchUsers() {
+      const res = await fetch(`${API_URL}/users`);
+      const data = await res.json();
+      instructorsTable.innerHTML = data
+        .filter(u => u.role === "Instructor")
+        .map(u => `<tr>
+          <td>${u.name}</td>
+          <td>${u.email}</td>
+          <td><button onclick="removeUser('${u.email}')">Remove</button></td>
+        </tr>`).join("");
+
+      studentsTable.innerHTML = data
+        .filter(u => u.role === "Student")
+        .map(u => `<tr>
+          <td>${u.name}</td>
+          <td>${u.email}</td>
+          <td><button onclick="removeUser('${u.email}')">Remove</button></td>
+        </tr>`).join("");
+    }
+
+    async function removeUser(email) {
+      if (!confirm("Are you sure you want to remove this user?")) return;
+      const res = await fetch(`${API_URL}/users/${email}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        alert("✅ User removed");
+        fetchUsers();
+      } else {
+        alert(data.error || "Failed to remove user");
+      }
+    }
+
+    // ---------------- Register Instructor ----------------
+    const instructorForm = document.getElementById("instructorForm");
+    instructorForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const name = document.getElementById("instName").value.trim();
+      const email = document.getElementById("instEmail").value.trim();
+      const password = document.getElementById("instPassword").value.trim();
+
+      if (!name || !email || !password) { alert("All fields are required"); return; }
+
+      try {
+        const res = await fetch(`${API_URL}/users`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password, role: "Instructor" })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ Instructor registered");
+          instructorForm.reset();
+          fetchUsers();
+        } else {
+          alert(data.error || "Failed to register instructor");
+        }
+      } catch(err) {
+        alert("Network error: " + err.message);
+      }
+    });
+
+    function logout() {
+      localStorage.removeItem("loggedInUser");
+      window.location.href = "index.html";
+    }
+
+    // Initial fetch
+    fetchSubmissions();
+    fetchUsers();
+  </script>
+</body>
+</html>

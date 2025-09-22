@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Instructor Dashboard - Project Grading System</title>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #2d89ef, #6a11cb, #2575fc);
+      background-size: 400% 400%;
+      animation: gradientBG 12s ease infinite;
+      margin: 0;
+      padding: 0;
+    }
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      background: rgba(255,255,255,0.95);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    }
+    h2, h3 { color: #333; }
+    .logout {
+      float: right;
+      background: crimson;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    table th, table td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+    table th { background: #2d89ef; color: white; }
+    input, button {
+      padding: 6px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #2d89ef;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { background: #1b5fc8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button class="logout" onclick="logout()">Logout</button>
+    <h2 id="welcomeMessage">Instructor Dashboard</h2>
+
+    <h3>📋 Student Submissions</h3>
+    <table id="submissionsTable">
+      <thead>
+        <tr>
+          <th>Student Name</th>
+          <th>Project Title</th>
+          <th>File</th>
+          <th>Score</th>
+          <th>Feedback</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const API_URL = "https://project-grader-backend.onrender.com/api";
+    const user = JSON.parse(localStorage.getItem("loggedInUser"));
+
+    if (!user || user.role !== "Instructor") window.location.href = "index.html";
+    else document.getElementById("welcomeMessage").textContent = `Welcome, ${user.name} (Instructor)`;
+
+    const submissionsTable = document.getElementById("submissionsTable").querySelector("tbody");
+
+    async function fetchSubmissions() {
+      const res = await fetch(`${API_URL}/submissions`);
+      const data = await res.json();
+
+      // optionally filter by student name/email if needed
+      submissionsTable.innerHTML = data.map(s => `
+        <tr>
+          <td>${s.student}</td>
+          <td>${s.title}</td>
+          <td><a href="${API_URL.replace("/api","")}${s.filePath}" target="_blank">${s.originalName}</a></td>
+          <td><input type="number" min="0" max="100" value="${s.score ?? ""}" data-id="${s.id}" class="scoreInput"></td>
+          <td><input type="text" value="${s.feedback ?? ""}" data-id="${s.id}" class="feedbackInput"></td>
+          <td><button onclick="gradeSubmission('${s.id}')">Save</button></td>
+        </tr>
+      `).join("");
+    }
+
+    async function gradeSubmission(id) {
+      const score = document.querySelector(`.scoreInput[data-id='${id}']`).value;
+      const feedback = document.querySelector(`.feedbackInput[data-id='${id}']`).value;
+
+      if (score === "" || feedback === "") return alert("Score and feedback are required.");
+
+      const res = await fetch(`${API_URL}/submissions/${id}/grade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ score, feedback })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Submission graded successfully!");
+        fetchSubmissions();
+      } else {
+        alert(data.error || "Failed to grade submission.");
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("loggedInUser");
+      window.location.href = "index.html";
+    }
+
+    fetchSubmissions();
+  </script>
+</body>
+</html>
