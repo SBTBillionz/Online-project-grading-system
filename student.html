@@ -90,7 +90,7 @@
     const user = JSON.parse(localStorage.getItem("loggedInUser"));
 
     if (!user || user.role !== "Student") window.location.href = "index.html";
-    else document.getElementById("welcomeMessage").textContent = `Welcome, ${user.name} (Student)`;
+    else document.getElementById("welcomeMessage").textContent = `Welcome, ${user.name}`;
 
     const submissionsTable = document.getElementById("submissionsTable").querySelector("tbody");
     const submitForm = document.getElementById("submitForm");
@@ -152,3 +152,4 @@
   </script>
 </body>
 </html>
+
